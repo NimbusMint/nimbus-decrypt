@@ -232,7 +232,7 @@ jobs:
         id: log
         shell: bash
         run: |
-          PREV=$(git tag --sort=-version:refname | grep -v "^${{ steps.ver.outputs.tag }}$" | head -1)
+          PREV=$(git tag --sort=-version:refname | grep -v "^${{ steps.ver.outputs.tag }}$" | head -1 || true)
           if [[ -z "$PREV" ]]; then
             NOTES=$(git log --pretty=format:"- %s" HEAD | head -30)
           else
