@@ -1,0 +1,255 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to release (e.g. v1.2.3)'
+        required: true
+
+env:
+  NODE_VERSION: '20'
+
+# ── Build jobs run in parallel, then the release job collects everything ───────
+
+jobs:
+  build-linux:
+    name: Build (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Stamp version into package.json
+        run: npm version ${{ steps.ver.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Install Linux build dependencies
+        run: sudo apt-get install -y rpm fakeroot
+
+      - name: Build
+        run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename artifacts
+        shell: bash
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          find release -maxdepth 1 -name "*.AppImage" -exec mv {} "release/nimbus-decrypt-${V}-linux.AppImage" \;
+          find release -maxdepth 1 -name "*.deb"      -exec mv {} "release/nimbus-decrypt-${V}-linux.deb"      \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            release/nimbus-decrypt-*-linux.AppImage
+            release/nimbus-decrypt-*-linux.deb
+          if-no-files-found: error
+          retention-days: 1
+
+  build-macos:
+    name: Build (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Stamp version into package.json
+        run: npm version ${{ steps.ver.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Build (unsigned)
+        run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Rename artifacts
+        shell: bash
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          find release -maxdepth 1 -name "*.dmg" -exec mv {} "release/nimbus-decrypt-${V}-macos.dmg" \;
+          find release -maxdepth 1 -name "*-mac.zip" -exec mv {} "release/nimbus-decrypt-${V}-macos.zip" \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            release/nimbus-decrypt-*-macos.dmg
+            release/nimbus-decrypt-*-macos.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Stamp version into package.json
+        shell: bash
+        run: npm version ${{ steps.ver.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Build
+        run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename artifacts
+        shell: bash
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          find release -maxdepth 1 -name "* Setup *.exe" -exec mv {} "release/nimbus-decrypt-${V}-windows-setup.exe" \;
+          find release -maxdepth 1 -name "*-win.zip"      -exec mv {} "release/nimbus-decrypt-${V}-windows.zip"        \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            release/nimbus-decrypt-*-windows-setup.exe
+            release/nimbus-decrypt-*-windows.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  # ── Aggregate artifacts → checksums → GitHub Release ──────────────────────
+
+  release:
+    name: Publish Release
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Generate SHA-256 checksums
+        run: |
+          cd dist
+          sha256sum nimbus-decrypt-* > checksums.txt
+          echo "--- checksums ---"
+          cat checksums.txt
+
+      - name: Generate changelog
+        id: log
+        shell: bash
+        run: |
+          PREV=$(git tag --sort=-version:refname | grep -v "^${{ steps.ver.outputs.tag }}$" | head -1)
+          if [[ -z "$PREV" ]]; then
+            NOTES=$(git log --pretty=format:"- %s" HEAD | head -30)
+          else
+            NOTES=$(git log "${PREV}..${{ steps.ver.outputs.tag }}" --pretty=format:"- %s")
+          fi
+          {
+            echo "notes<<CHANGELOG_EOF"
+            echo "$NOTES"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Nimbus Decrypt ${{ steps.ver.outputs.tag }}
+          make_latest: true
+          body: |
+            ## What's Changed
+
+            ${{ steps.log.outputs.notes }}
+
+            ---
+
+            ## Downloads
+
+            | Platform | Installer | Portable |
+            |----------|-----------|---------|
+            | **Windows** | `nimbus-decrypt-${{ steps.ver.outputs.version }}-windows-setup.exe` | `nimbus-decrypt-${{ steps.ver.outputs.version }}-windows.zip` |
+            | **macOS** | `nimbus-decrypt-${{ steps.ver.outputs.version }}-macos.dmg` | `nimbus-decrypt-${{ steps.ver.outputs.version }}-macos.zip` |
+            | **Linux (AppImage)** | `nimbus-decrypt-${{ steps.ver.outputs.version }}-linux.AppImage` | — |
+            | **Linux (DEB)** | `nimbus-decrypt-${{ steps.ver.outputs.version }}-linux.deb` | — |
+
+            Verify your download with `checksums.txt`.
+          files: dist/*
+          fail_on_unmatched_files: false
