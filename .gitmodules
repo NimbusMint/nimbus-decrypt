@@ -1,0 +1,3 @@
+[submodule "nimbus-atmosphere"]
+	path = nimbus-atmosphere
+	url = git@github.com:NimbusMint/nimbus-atmosphere.git
