@@ -1,4 +1,5 @@
-import { useState, useCallback, type CSSProperties } from 'react';
+import { useState, useCallback } from 'react';
+import { AtmosphereLayer } from 'nimbus-atmosphere';
 import { DropZone } from './components/DropZone';
 import { PasswordForm } from './components/PasswordForm';
 import { WalletCard } from './components/WalletCard';
@@ -61,54 +62,6 @@ function ShieldIcon() {
       strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
-  );
-}
-
-/* ─── Cloud SVGs — matching nimbus-fe clouds.tsx exactly ─── */
-function Cloud({ style }: { style?: CSSProperties }) {
-  return (
-    <svg viewBox="0 0 200 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={style}>
-      <ellipse cx="70" cy="60" rx="60" ry="30" fill="currentColor" />
-      <ellipse cx="120" cy="55" rx="50" ry="35" fill="currentColor" />
-      <ellipse cx="50" cy="65" rx="40" ry="22" fill="currentColor" />
-      <ellipse cx="100" cy="40" rx="35" ry="28" fill="currentColor" />
-      <ellipse cx="140" cy="62" rx="35" ry="20" fill="currentColor" />
-    </svg>
-  );
-}
-
-function CloudSmall({ style }: { style?: CSSProperties }) {
-  return (
-    <svg viewBox="0 0 120 60" fill="none" xmlns="http://www.w3.org/2000/svg" style={style}>
-      <ellipse cx="40" cy="35" rx="35" ry="18" fill="currentColor" />
-      <ellipse cx="70" cy="30" rx="30" ry="22" fill="currentColor" />
-      <ellipse cx="55" cy="25" rx="20" ry="16" fill="currentColor" />
-    </svg>
-  );
-}
-
-/* ─── Cloud decoration — 6 clouds matching nimbus-fe page.tsx layout ─── */
-function CloudDecoration() {
-  const base: CSSProperties = {
-    position: 'absolute',
-    animation: 'drift 120s linear infinite',
-  };
-
-  return (
-    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 0 }}>
-      {/* top 8%, left 5%, w-48, sky-200/70 — no delay */}
-      <Cloud style={{ ...base, top: '8%', left: '5%', width: 192, color: 'rgba(186, 230, 253, 0.70)' }} />
-      {/* top 15%, right 10%, w-28, sky-200/60 — 3s delay */}
-      <CloudSmall style={{ ...base, top: '15%', right: '10%', width: 112, color: 'rgba(186, 230, 253, 0.60)', animationDelay: '3s' }} />
-      {/* bottom 12%, right 3%, w-56, sky-100/60 — 5s delay */}
-      <Cloud style={{ ...base, bottom: '12%', right: '3%', width: 224, color: 'rgba(224, 242, 254, 0.60)', animationDelay: '5s' }} />
-      {/* bottom 25%, left 8%, w-32, sky-200/50 — 8s delay */}
-      <CloudSmall style={{ ...base, bottom: '25%', left: '8%', width: 128, color: 'rgba(186, 230, 253, 0.50)', animationDelay: '8s' }} />
-      {/* top 45%, left 2%, w-24, sky-100/50 — 2s delay */}
-      <CloudSmall style={{ ...base, top: '45%', left: '2%', width: 96, color: 'rgba(224, 242, 254, 0.50)', animationDelay: '2s' }} />
-      {/* top 5%, right 30%, w-40, sky-200/40 — 1s delay */}
-      <Cloud style={{ ...base, top: '5%', right: '30%', width: 160, color: 'rgba(186, 230, 253, 0.40)', animationDelay: '1s' }} />
-    </div>
   );
 }
 
@@ -200,8 +153,9 @@ export default function App() {
   const isUnlocked = phase === 'unlocked';
 
   return (
+    <>
+    <AtmosphereLayer />
     <div className="app">
-      <CloudDecoration />
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="header">
@@ -362,5 +316,6 @@ export default function App() {
       )}
 
     </div>
+    </>
   );
 }

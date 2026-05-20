@@ -112,22 +112,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #ffffff;
+  background: transparent;
   position: relative;
-}
-
-/* Sky-to-white gradient + centered top glow — matches nimbus-fe exactly */
-.app::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(to bottom, #f0f9ff 0%, rgba(255, 255, 255, 0) 40%),
-    radial-gradient(ellipse 95% 90% at 50% -10%, rgba(224, 242, 254, 0.45) 0%, transparent 70%),
-    radial-gradient(ellipse 50% 50% at 10% 90%, rgba(78, 205, 196, 0.10) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 30% at 90% 60%, rgba(56, 189, 248, 0.08) 0%, transparent 60%);
-  z-index: 0;
 }
 
 /* ─── Header ─────────────────────────────────────────────────────────────── */
@@ -1311,12 +1297,6 @@ body {
 }
 
 /* ─── Animations ─────────────────────────────────────────────────────────── */
-
-/* Cloud drift — matches nimbus-fe exactly */
-@keyframes drift {
-  0%   { transform: translateX(-100vw); }
-  100% { transform: translateX(100vw); }
-}
 
 /* Entry animations — matching nimbus-fe timing */
 @keyframes fade-in-up {
