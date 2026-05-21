@@ -1,7 +1,9 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, ipcMain, session } from 'electron';
 import path from 'path';
 import { registerCryptoHandlers } from './ipc/crypto';
 import { registerFileHandlers } from './ipc/fileio';
+
+let mainWindow: BrowserWindow | null = null;
 
 // Prevent second instances — one window only
 const gotTheLock = app.requestSingleInstanceLock();
@@ -69,6 +71,7 @@ function createWindow(): BrowserWindow {
     minHeight: 500,
     title: 'Nimbus Decrypt',
     backgroundColor: '#0f1117',
+    frame: false,
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -81,6 +84,12 @@ function createWindow(): BrowserWindow {
       // No remote module, no node in renderer
     },
   });
+
+  mainWindow = win;
+
+  // Forward maximize state so renderer can update the maximize/restore button
+  win.on('maximize', () => win.webContents.send('window:maximized', true));
+  win.on('unmaximize', () => win.webContents.send('window:maximized', false));
 
   // Block all new-window / popup attempts
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -114,12 +123,23 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+function registerWindowHandlers(): void {
+  ipcMain.on('window:minimize', () => mainWindow?.minimize());
+  ipcMain.on('window:maximize', () => {
+    if (!mainWindow) return;
+    mainWindow.isMaximized() ? mainWindow.restore() : mainWindow.maximize();
+  });
+  ipcMain.on('window:close', () => mainWindow?.close());
+  ipcMain.handle('window:is-maximized', () => mainWindow?.isMaximized() ?? false);
+}
+
 app.whenReady().then(() => {
   // Apply CSP before any window is created
   applyContentSecurityPolicy();
 
   registerCryptoHandlers();
   registerFileHandlers();
+  registerWindowHandlers();
 
   createWindow();
 

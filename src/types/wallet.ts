@@ -52,6 +52,13 @@ export interface SaveEncryptedRequest {
 declare global {
   interface Window {
     electronAPI: {
+      window: {
+        minimize: () => void;
+        toggleMaximize: () => void;
+        close: () => void;
+        isMaximized: () => Promise<boolean>;
+        onMaximizeChange: (cb: (maximized: boolean) => void) => void;
+      };
       decrypt: {
         wallets: (bundleJson: string, password: string) => Promise<DecryptResult>;
       };

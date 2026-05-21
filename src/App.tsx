@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { AtmosphereLayer } from 'nimbus-atmosphere';
 import { DropZone } from './components/DropZone';
 import { PasswordForm } from './components/PasswordForm';
@@ -52,6 +52,40 @@ function CloseIcon({ size = 14 }: { size?: number }) {
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function WinMinimizeIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+      <line x1="1" y1="10" x2="10" y2="10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function WinMaximizeIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+      <rect x="0.75" y="0.75" width="9.5" height="9.5" stroke="currentColor" strokeWidth="1.4" rx="1" />
+    </svg>
+  );
+}
+
+function WinRestoreIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+      <rect x="2.5" y="0.75" width="7.75" height="7.75" stroke="currentColor" strokeWidth="1.4" rx="1" />
+      <path d="M0.75 2.5v7.75h7.75" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+function WinCloseIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+      <line x1="1.5" y1="1.5" x2="9.5" y2="9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="9.5" y1="1.5" x2="1.5" y2="9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -152,6 +186,12 @@ export default function App() {
 
   const isUnlocked = phase === 'unlocked';
 
+  const [isMaximized, setIsMaximized] = useState(false);
+  useEffect(() => {
+    window.electronAPI.window.isMaximized().then(setIsMaximized);
+    window.electronAPI.window.onMaximizeChange(setIsMaximized);
+  }, []);
+
   return (
     <>
     <AtmosphereLayer />
@@ -211,6 +251,29 @@ export default function App() {
               <CloseIcon size={13} />
             </button>
           )}
+          {/* Window controls */}
+          <div className="wc-divider" aria-hidden="true" />
+          <button
+            className="wc-btn"
+            onClick={() => window.electronAPI.window.minimize()}
+            aria-label="Minimize"
+          >
+            <WinMinimizeIcon />
+          </button>
+          <button
+            className="wc-btn"
+            onClick={() => window.electronAPI.window.toggleMaximize()}
+            aria-label={isMaximized ? 'Restore' : 'Maximize'}
+          >
+            {isMaximized ? <WinRestoreIcon /> : <WinMaximizeIcon />}
+          </button>
+          <button
+            className="wc-btn wc-btn--close"
+            onClick={() => window.electronAPI.window.close()}
+            aria-label="Close"
+          >
+            <WinCloseIcon />
+          </button>
         </div>
       </header>
 
