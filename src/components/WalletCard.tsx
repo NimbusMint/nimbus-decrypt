@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { DecryptedWallet } from '../types/wallet';
 import { useClipboard } from '../hooks/useClipboard';
 
@@ -67,6 +67,8 @@ function WarningIcon() {
   );
 }
 
+const REVEAL_SECONDS = 15;
+
 /* Short index label: W01, W02, … */
 function walletLabel(index: number): string {
   return `W${String(index + 1).padStart(2, '0')}`;
@@ -75,7 +77,11 @@ function walletLabel(index: number): string {
 export function WalletCard({ wallet, index }: WalletCardProps) {
   const [revealing, setRevealing] = useState(false);
   const [toggleRevealed, setToggleRevealed] = useState(false);
+  const [revealCountdown, setRevealCountdown] = useState<number | null>(null);
+  const revealIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [copiedAddr, setCopiedAddr] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
   const { countdown, copyWithAutoClear, cancelClear } = useClipboard();
 
   const isRevealed = revealing || toggleRevealed;
@@ -83,10 +89,36 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
   const startReveal = useCallback(() => setRevealing(true), []);
   const stopReveal = useCallback(() => setRevealing(false), []);
 
+  const clearRevealTimer = useCallback(() => {
+    if (revealIntervalRef.current !== null) {
+      clearInterval(revealIntervalRef.current);
+      revealIntervalRef.current = null;
+    }
+    setRevealCountdown(null);
+  }, []);
+
   const toggleReveal = useCallback(() => {
-    setToggleRevealed(v => !v);
-    if (toggleRevealed) setRevealing(false);
-  }, [toggleRevealed]);
+    if (toggleRevealed) {
+      setToggleRevealed(false);
+      setRevealing(false);
+      clearRevealTimer();
+    } else {
+      setToggleRevealed(true);
+      setRevealCountdown(REVEAL_SECONDS);
+      let remaining = REVEAL_SECONDS;
+      revealIntervalRef.current = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(revealIntervalRef.current!);
+          revealIntervalRef.current = null;
+          setToggleRevealed(false);
+          setRevealCountdown(null);
+        } else {
+          setRevealCountdown(remaining);
+        }
+      }, 1000);
+    }
+  }, [toggleRevealed, clearRevealTimer]);
 
   const copyAddress = async () => {
     try {
@@ -103,8 +135,15 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
     }
     try {
       await copyWithAutoClear(wallet.privateKey, 30);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 1500);
     } catch { /* clipboard denied */ }
   };
+
+  const copyKeyClass = [
+    'copy-btn',
+    copiedKey ? 'copy-btn--copied' : countdown !== null ? 'copy-btn--counting' : '',
+  ].filter(Boolean).join(' ');
 
   const cardStyle: React.CSSProperties = { animationDelay: `${index * 55}ms` };
 
@@ -137,7 +176,7 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
             aria-label="Copy address"
           >
             {copiedAddr ? <CheckIcon /> : <CopyIcon />}
-            {copiedAddr ? 'Copied' : 'Copy'}
+            {copiedAddr ? 'Copied!' : 'Copy'}
           </button>
         </div>
       </div>
@@ -170,42 +209,40 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
             Hold to reveal
           </button>
 
-          {/* Toggle reveal */}
+          {/* Toggle reveal — auto-hides after 15 s */}
           <button
             className={`reveal-btn${toggleRevealed ? ' reveal-btn--active' : ''}`}
             onClick={toggleReveal}
-            title={toggleRevealed ? 'Hide private key' : 'Toggle reveal private key'}
+            title={toggleRevealed ? 'Hide private key' : 'Show private key (15 s max)'}
             aria-label={toggleRevealed ? 'Hide private key' : 'Show private key'}
           >
             {toggleRevealed ? <EyeOffIcon /> : <EyeIcon />}
-            {toggleRevealed ? 'Hide' : 'Show'}
+            {toggleRevealed
+              ? `Hide${revealCountdown !== null ? ` (${revealCountdown}s)` : ''}`
+              : 'Show'}
           </button>
 
           {/* Copy with auto-clear */}
           <button
-            className="copy-btn"
+            className={copyKeyClass}
             onClick={copyKey}
-            title="Copy private key — auto-clears clipboard in 30s"
+            title={countdown !== null ? 'Click to clear clipboard now' : 'Copy private key — auto-clears in 30s'}
             aria-label="Copy private key"
           >
-            {countdown !== null ? (
-              <span className="clipboard-countdown">
-                <TimerIcon />
-                Clear in {countdown}s
-              </span>
+            {copiedKey ? (
+              <><CheckIcon />Copied!</>
+            ) : countdown !== null ? (
+              <><TimerIcon />Clear in {countdown}s</>
             ) : (
-              <>
-                <CopyIcon />
-                Copy Key
-              </>
+              <><CopyIcon />Copy Key</>
             )}
           </button>
         </div>
 
-        {countdown !== null && (
+        {countdown !== null && !copiedKey && (
           <div className="clipboard-hint" style={{ marginTop: 8 }}>
             <WarningIcon />
-            Clipboard clears in {countdown}s. Keep this window focused.
+            Clipboard clears in {countdown}s — click Copy Key to clear now.
           </div>
         )}
       </div>

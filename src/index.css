@@ -839,6 +839,19 @@ body {
   background: var(--success-bg);
 }
 
+.copy-btn--counting {
+  color: var(--warning);
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+}
+
+.copy-btn--counting:hover {
+  color: var(--warning);
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  opacity: 0.85;
+}
+
 .reveal-btn {
   display: inline-flex;
   align-items: center;
