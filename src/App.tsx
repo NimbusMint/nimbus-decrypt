@@ -16,11 +16,24 @@ const AUTO_LOCK_MS = 5 * 60 * 1000;
 /* ─── SVG icons ─── */
 function LogoIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"
         fill="rgba(255,255,255,0.25)" />
       <path d="M12 6l-5 9h10L12 6z" fill="white" fillOpacity="0.9" />
       <path d="M12 10l3 5H9l3-5z" fill="white" />
+    </svg>
+  );
+}
+
+function DragGripIcon() {
+  return (
+    <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true">
+      <circle cx="2.5" cy="2.5" r="1.8" />
+      <circle cx="9.5" cy="2.5" r="1.8" />
+      <circle cx="2.5" cy="8"   r="1.8" />
+      <circle cx="9.5" cy="8"   r="1.8" />
+      <circle cx="2.5" cy="13.5" r="1.8" />
+      <circle cx="9.5" cy="13.5" r="1.8" />
     </svg>
   );
 }
@@ -209,6 +222,10 @@ export default function App() {
         </div>
 
         <div className="header__spacer" />
+
+        <div className="header__drag-hint">
+          <DragGripIcon />
+        </div>
 
         <div className="header__actions">
           <div className="header__offline-badge">

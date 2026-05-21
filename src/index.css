@@ -120,15 +120,16 @@ body {
 .header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 20px;
-  height: 64px;
-  border-bottom: 1px solid var(--border);
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  gap: 8px;
+  padding: 0 8px 0 14px;
+  height: 46px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(11, 17, 32, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   flex-shrink: 0;
   -webkit-app-region: drag;
+  cursor: grab;
   position: relative;
   z-index: 10;
 }
@@ -136,20 +137,21 @@ body {
 .header__logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   -webkit-app-region: no-drag;
+  cursor: default;
 }
 
 .header__logo-icon {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   background: linear-gradient(135deg, var(--mint-400) 0%, var(--sky-500) 100%);
-  border-radius: 9px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: var(--shadow-accent);
+  box-shadow: 0 0 10px rgba(78, 205, 196, 0.35);
 }
 
 .header__logo-icon svg {
@@ -157,23 +159,57 @@ body {
 }
 
 .header__title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: rgba(255, 255, 255, 0.88);
   letter-spacing: -0.1px;
 }
 
 .header__title span {
-  color: var(--accent);
+  color: var(--mint-400);
 }
 
 .header__spacer { flex: 1; }
 
+/* ── Centered drag hint ── */
+.header__drag-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
 .header__actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   -webkit-app-region: no-drag;
+  cursor: default;
+}
+
+/* Action buttons scoped to dark header */
+.header .btn--ghost {
+  color: rgba(255, 255, 255, 0.58);
+  border-color: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+}
+.header .btn--ghost:hover {
+  color: rgba(255, 255, 255, 0.90);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.10);
+}
+.header .btn--icon {
+  color: rgba(255, 255, 255, 0.45);
+  border-color: transparent;
+  background: transparent;
+}
+.header .btn--icon:hover {
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.10);
 }
 
 .header__offline-badge {
@@ -182,19 +218,19 @@ body {
   gap: 5px;
   font-size: 11px;
   font-weight: 500;
-  color: var(--accent);
-  background: var(--accent-dim);
-  border: 1px solid rgba(78, 205, 196, 0.30);
+  color: var(--mint-400);
+  background: rgba(78, 205, 196, 0.10);
+  border: 1px solid rgba(78, 205, 196, 0.22);
   border-radius: 20px;
-  padding: 3px 10px;
+  padding: 3px 9px;
   letter-spacing: 0.2px;
 }
 
 .header__offline-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--mint-400);
   flex-shrink: 0;
 }
 
@@ -301,9 +337,9 @@ body {
 /* ─── Window control buttons ─────────────────────────────────────────────── */
 .wc-divider {
   width: 1px;
-  height: 16px;
-  background: var(--border);
-  margin: 0 6px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.10);
+  margin: 0 4px;
   flex-shrink: 0;
 }
 
@@ -311,11 +347,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border: none;
   background: transparent;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.40);
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: background var(--transition), color var(--transition);
@@ -325,13 +361,13 @@ body {
 }
 
 .wc-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .wc-btn--close:hover {
-  background: var(--danger-bg);
-  color: var(--danger);
+  background: rgba(220, 53, 69, 0.80);
+  color: #fff;
 }
 
 /* ─── Drop zone ──────────────────────────────────────────────────────────── */
