@@ -107,9 +107,9 @@ function createWindow(): BrowserWindow {
   // Open external links in the OS browser via setWindowOpenHandler (already set to 'deny' above)
   // shell is available for other uses if needed
 
-  // Prevent permission escalation
-  win.webContents.session.setPermissionRequestHandler((_wc, _perm, callback) => {
-    callback(false);
+  // Prevent permission escalation — allow only clipboard-write for copy buttons
+  win.webContents.session.setPermissionRequestHandler((_wc, perm, callback) => {
+    callback(perm === 'clipboard-write' || perm === 'clipboard-sanitized-write');
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {

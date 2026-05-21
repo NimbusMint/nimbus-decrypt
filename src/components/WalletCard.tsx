@@ -165,10 +165,10 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
       {/* Address */}
       <div className="wallet-card__field">
         <div className="wallet-card__field-label">Address</div>
-        <div className="wallet-card__field-row">
-          <div className="wallet-card__value selectable">
-            {wallet.address}
-          </div>
+        <div className="wallet-card__value selectable">
+          {wallet.address}
+        </div>
+        <div className="wallet-card__actions">
           <button
             className={`copy-btn${copiedAddr ? ' copy-btn--copied' : ''}`}
             onClick={copyAddress}
@@ -176,7 +176,7 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
             aria-label="Copy address"
           >
             {copiedAddr ? <CheckIcon /> : <CopyIcon />}
-            {copiedAddr ? 'Copied!' : 'Copy'}
+            {copiedAddr ? 'Copied!' : 'Copy Address'}
           </button>
         </div>
       </div>
