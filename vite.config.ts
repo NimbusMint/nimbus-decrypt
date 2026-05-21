@@ -13,7 +13,15 @@ export default defineConfig({
             sourcemap: true,
             minify: false,
             rollupOptions: {
-              external: ['electron', 'crypto', 'path', 'fs', 'os', 'url', 'module', 'util'],
+              input: {
+                main: 'electron/main.ts',
+                'crypto.worker': 'electron/lib/crypto.worker.ts',
+              },
+              external: ['electron', 'crypto', 'path', 'fs', 'os', 'url', 'module', 'util', 'worker_threads'],
+              output: {
+                format: 'cjs',
+                entryFileNames: '[name].js',
+              },
             },
           },
         },

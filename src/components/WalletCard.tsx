@@ -239,12 +239,13 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
           </button>
         </div>
 
-        {countdown !== null && !copiedKey && (
-          <div className="clipboard-hint" style={{ marginTop: 8 }}>
-            <WarningIcon />
-            Clipboard clears in {countdown}s — click Copy Key to clear now.
-          </div>
-        )}
+        <div
+          className="clipboard-hint"
+          style={{ marginTop: 8, visibility: countdown !== null && !copiedKey ? 'visible' : 'hidden' }}
+        >
+          <WarningIcon />
+          Clipboard clears in {countdown ?? 30}s — click Copy Key to clear now.
+        </div>
       </div>
     </div>
   );

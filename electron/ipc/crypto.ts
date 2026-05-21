@@ -1,13 +1,27 @@
 import { ipcMain } from 'electron';
-import { decryptBundle, encryptBundle } from '../lib/crypto';
+import { Worker } from 'worker_threads';
+import path from 'path';
+import { encryptBundle } from '../lib/crypto';
 import type { DecryptResult, SaveEncryptedRequest } from '../../src/types/wallet';
+
+function runDecryptInWorker(bundleJson: string, password: string): Promise<DecryptResult> {
+  return new Promise<DecryptResult>((resolve) => {
+    const worker = new Worker(path.join(__dirname, 'crypto.worker.js'), {
+      workerData: { bundleJson, password },
+    });
+    worker.once('message', (result: DecryptResult) => resolve(result));
+    worker.once('error', (err) => resolve({ ok: false, error: err.message }));
+    worker.once('exit', (code) => {
+      if (code !== 0) resolve({ ok: false, error: `Crypto worker exited with code ${code}` });
+    });
+  });
+}
 
 export function registerCryptoHandlers(): void {
   ipcMain.handle(
     'decrypt:wallets',
-    async (_event, bundleJson: string, password: string): Promise<DecryptResult> => {
-      return decryptBundle(bundleJson, password);
-    }
+    (_event, bundleJson: string, password: string): Promise<DecryptResult> =>
+      runDecryptInWorker(bundleJson, password)
   );
 
   ipcMain.handle(

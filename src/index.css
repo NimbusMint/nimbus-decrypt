@@ -114,6 +114,23 @@ body {
   height: 100%;
   background: transparent;
   position: relative;
+  -webkit-app-region: drag;
+}
+
+/* Interactive elements must opt out of the drag region */
+button,
+input,
+select,
+textarea,
+[role="button"],
+.drop-zone,
+.password-form,
+.wallet-card,
+.wallet-toolbar,
+.selectable,
+.lock-card,
+.export-modal {
+  -webkit-app-region: no-drag;
 }
 
 /* ─── Header ─────────────────────────────────────────────────────────────── */
@@ -244,6 +261,7 @@ body {
   align-items: center;
   position: relative;
   z-index: 1;
+  -webkit-app-region: drag;
 }
 
 .main--centered {
@@ -991,6 +1009,7 @@ body {
   justify-content: center;
   z-index: 100;
   animation: fadeIn 0.22s var(--ease);
+  -webkit-app-region: drag;
 }
 
 
