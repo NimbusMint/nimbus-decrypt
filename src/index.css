@@ -3,6 +3,7 @@
   /* Light mode as default — matches nimbus-fe sky/white/mint/navy system */
 
   /* Backgrounds */
+  --bg-page:       #ffffff;
   --bg-base:       #f0f9ff;
   --bg-surface:    rgba(255, 255, 255, 0.82);
   --bg-elevated:   rgba(240, 249, 255, 0.90);
@@ -25,6 +26,11 @@
   --sky-300: #7dd3fc;
   --sky-400: #38bdf8;
   --sky-500: #0ea5e9;
+  /* Sky as small text on a sky-tinted surface. Split from the palette because
+     the surface inverts in dark mode and the text has to move with it while
+     sky-300..500 stay put as fills. */
+  --sky-text:       #0ea5e9;
+  --sky-text-hover: #38bdf8;
 
   /* Mint palette */
   --mint-300: #80E8D0;
@@ -57,9 +63,15 @@
   --success-border: rgba(34, 197, 94, 0.32);
 
   /* Glass */
-  --glass:          rgba(255, 255, 255, 0.82);
-  --glass-strong:   rgba(255, 255, 255, 0.96);
-  --glass-overlay:  rgba(240, 249, 255, 0.86);
+  --glass:              rgba(255, 255, 255, 0.82);
+  --glass-strong:       rgba(255, 255, 255, 0.96);
+  --glass-overlay:      rgba(240, 249, 255, 0.86);
+  --glass-overlay-soft: rgba(240, 249, 255, 0.75);
+
+  /* Header — a dark frosted bar in BOTH themes; only its lift off the page
+     changes, since in dark mode the page floor is nearly the bar's own colour. */
+  --header-bg:     rgba(11, 17, 32, 0.96);
+  --header-border: rgba(255, 255, 255, 0.06);
 
   /* Radius */
   --radius-xs: 6px;
@@ -89,6 +101,114 @@
 }
 
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Dark theme
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Almost all of dark mode happens here rather than in component styles,
+   because every colour above is already a `var(--token)` reference.
+   Redefining the token under `.dark` repoints every use of it at once.
+
+   The two rules that govern which shades move are nimbus-fe's (see its
+   app/globals.css), and they are why the result is coherent rather than a set
+   of one-off patches:
+
+   1. THE LIGHT END INVERTS. Sky 50-200 are only ever surfaces here: tinted
+      panel fills, hairline borders, avatar gradients. Each becomes its
+      dark-ground equivalent, and every card, divider and chip follows.
+
+   2. THE VIVID MIDDLE DOES NOT MOVE. Sky 300-500 and the whole mint ramp are
+      accents and solid buttons carrying white labels. A mint button on a dark
+      page should look exactly like a mint button, so the primary gradient,
+      the offline badge and every accent border are left strictly alone.
+
+   `.dark` and `:root` have the same specificity and both match <html>, so
+   source order decides — this block must stay after the token block at the
+   top of the file. It is applied by src/hooks/useTheme.ts. */
+
+.dark {
+  color-scheme: dark;
+
+  /* Page floor. Matches nimbus-atmosphere's DARK_THEME night sky and the
+     window backgroundColor in src/types/theme.ts, so the window, the fixed
+     atmosphere layer and the page it sits behind resolve to one ground. */
+  --bg-page:     #0b1220;
+  --bg-base:     #0b1220;
+
+  /* Elevation. In light mode the surfaces are all near-white and the lift is
+     carried by shadow; on a dark ground shadow does nothing, so it has to come
+     from the surface itself. */
+  --bg-surface:  rgba(22, 32, 58, 0.82);
+  --bg-elevated: rgba(15, 23, 40, 0.90);
+  --bg-hover:    rgba(51, 66, 95, 0.45);
+
+  --border:        rgba(34, 48, 74, 0.90);
+  --border-strong: rgba(51, 66, 95, 0.92);
+  /* --border-focus stays mint — it is an accent, not a surface. */
+
+  /* Text — the navy ramp inverts end to end. */
+  --text-primary:   #eef3fa;
+  --text-secondary: #b3c0d1;
+  --text-muted:     #8593ab;
+
+  /* Sky — the surface end only. sky-50 is the deepest panel fill, sky-100 the
+     standard tint, sky-200 the hairline and scrollbar thumb. */
+  --sky-50:  #131d30;
+  --sky-100: #22304a;
+  --sky-200: #33425f;
+  /* Sky as text has to climb the other way: #0ea5e9 on the new #22304a would
+     be a 3:1 read at 11px. */
+  --sky-text:       #7dd3fc;
+  --sky-text-hover: #bae6fd;
+
+  /* Glass */
+  --glass:              rgba(22, 32, 58, 0.78);
+  --glass-strong:       rgba(29, 40, 66, 0.94);
+  --glass-overlay:      rgba(11, 18, 32, 0.88);
+  --glass-overlay-soft: rgba(3, 6, 13, 0.72);
+
+  /* Header. Lifted off #0b1220 rather than sunk into it — the light-mode value
+     is within a few points of the dark page floor, which would leave the bar
+     with no edge at all. */
+  --header-bg:     rgba(20, 29, 50, 0.94);
+  --header-border: rgba(255, 255, 255, 0.09);
+
+  /* Semantic tints. Same hues, more alpha: 8% of amber over white reads as a
+     warning strip, 8% over #0b1220 reads as nothing. */
+  --accent-dim:     rgba(78, 205, 196, 0.16);
+  --warning-bg:     rgba(245, 158, 11, 0.15);
+  --warning-border: rgba(245, 158, 11, 0.36);
+  --danger-bg:      rgba(239, 68, 68, 0.15);
+  --danger-border:  rgba(239, 68, 68, 0.36);
+  --success-bg:     rgba(34, 197, 94, 0.15);
+  --success-border: rgba(34, 197, 94, 0.40);
+
+  /* Shadows. The light set is tinted sky-blue, which is invisible against a
+     navy ground — depth here has to come from black. */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.40), 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.46), 0 2px 6px rgba(0, 0, 0, 0.30);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.58), 0 4px 16px rgba(0, 0, 0, 0.34);
+}
+
+/* Applied to <html> for the single frame in which the theme flips, then
+   removed. Without it the switch does not land at once: cards, buttons,
+   borders and inputs all carry colour transitions, so they EASE into the new
+   palette while every untransitioned element — and the atmosphere, which
+   repaints from its own RAF loop — changes instantly. The result reads as the
+   window catching up with itself.
+
+   The transitions are wanted for hover and state changes, so they are
+   suppressed only here rather than removed. See src/hooks/useTheme.ts, which
+   adds this class in the same tick as `dark` so styles are computed once, with
+   transitions already off, and drops it after the new colours have painted. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+
 /* ─── Reset ──────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { height: 100%; }
@@ -97,7 +217,7 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
-  background: #ffffff;
+  background: var(--bg-page);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -140,8 +260,8 @@ textarea,
   gap: 8px;
   padding: 0 8px 0 14px;
   height: 46px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(11, 17, 32, 0.96);
+  border-bottom: 1px solid var(--header-border);
+  background: var(--header-bg);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   flex-shrink: 0;
@@ -351,6 +471,61 @@ textarea,
 
 .btn--sm { padding: 5px 12px; font-size: 12px; }
 .btn--xs { padding: 3px 9px; font-size: 11px; border-radius: var(--radius-sm); }
+
+
+/* ─── Theme toggle ───────────────────────────────────────────────────────── */
+/* Sits in the header, which is dark in both themes — so unlike everything else
+   in this file it is styled against white-on-dark directly rather than through
+   the palette tokens, exactly as the neighbouring header buttons are. */
+.theme-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.theme-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: 26px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  transition: transform var(--transition-md);
+}
+
+.theme-toggle__thumb--dark { transform: translateX(26px); }
+
+.theme-toggle__btn {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.38);
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.theme-toggle__btn:hover { color: rgba(255, 255, 255, 0.72); }
+.theme-toggle__btn--selected { color: var(--mint-400); }
+
+.theme-toggle__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.55);
+}
 
 /* ─── Window control buttons ─────────────────────────────────────────────── */
 .wc-divider {
@@ -758,7 +933,7 @@ textarea,
   height: 22px;
   padding: 0 6px;
   background: var(--sky-100);
-  color: var(--sky-500);
+  color: var(--sky-text);
   border-radius: 20px;
   font-size: 11px;
   font-weight: 700;
@@ -822,7 +997,7 @@ textarea,
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--sky-500);
+  color: var(--sky-text);
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 700;
@@ -1001,7 +1176,7 @@ textarea,
 .lock-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(240, 249, 255, 0.86);
+  background: var(--glass-overlay);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   display: flex;
@@ -1073,7 +1248,7 @@ textarea,
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(240, 249, 255, 0.75);
+  background: var(--glass-overlay-soft);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
@@ -1367,7 +1542,7 @@ textarea,
 /* ─── Idle state / browse link ───────────────────────────────────────────── */
 .browse-link {
   font-size: 12px;
-  color: var(--sky-500);
+  color: var(--sky-text);
   background: none;
   border: none;
   cursor: pointer;
@@ -1379,7 +1554,7 @@ textarea,
 }
 
 .browse-link:hover {
-  color: var(--sky-400);
+  color: var(--sky-text-hover);
   text-decoration-color: currentColor;
 }
 

@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, session } from 'electron';
 import path from 'path';
 import { registerCryptoHandlers } from './ipc/crypto';
 import { registerFileHandlers } from './ipc/fileio';
+import { registerThemeHandlers, readTheme } from './ipc/theme';
+import { THEME_BACKGROUND } from '../src/types/theme';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -70,7 +72,9 @@ function createWindow(): BrowserWindow {
     minWidth: 640,
     minHeight: 500,
     title: 'Nimbus Decrypt',
-    backgroundColor: '#0f1117',
+    // The stored theme's page ground, so the frames before the renderer paints
+    // are already the right colour instead of a fixed dark slab.
+    backgroundColor: THEME_BACKGROUND[readTheme()],
     frame: false,
     show: false,
     webPreferences: {
@@ -140,6 +144,7 @@ app.whenReady().then(() => {
   registerCryptoHandlers();
   registerFileHandlers();
   registerWindowHandlers();
+  registerThemeHandlers(() => mainWindow);
 
   createWindow();
 

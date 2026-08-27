@@ -39,7 +39,13 @@ window.electronAPI.decrypt.wallets(bundleJson, password) // → DecryptResult
 window.electronAPI.file.openBundle()                      // → {content, name} | null
 window.electronAPI.file.saveText(req)                     // → boolean
 window.electronAPI.file.saveEncrypted(req)                // → {ok, error?}
+window.electronAPI.theme.initial()                        // → 'light' | 'dark'  (SYNC)
+window.electronAPI.theme.set(theme)                       // → void
 ```
+
+`theme.initial()` is the only synchronous channel in the app. The renderer
+reads it during its first render so the window never paints the wrong theme
+and then flips; see `electron/ipc/theme.ts`.
 
 Defined in `electron/preload.ts` via `contextBridge.exposeInMainWorld`. Types are in `src/types/wallet.ts` and augmented onto `Window` there.
 
@@ -56,6 +62,15 @@ Decoding in `electron/lib/crypto.ts:aesGcmDecrypt`.
 - Crypto runs in the main process; the renderer holds decrypted `string` keys in React state.
 - Lock clears `wallets` state (`setWallets([])`); the encrypted `bundleJson` stays so the user can re-enter their password.
 - Auto-lock is triggered by `useAutoLock` (5-min inactivity timer, events: mousemove/keydown/mousedown/touchstart/wheel).
+
+## Theming
+
+Light/dark is a class on `<html>`, ported from nimbus-fe's ThemeProvider.
+`src/hooks/useTheme.ts` is the only writer of that class; every colour in
+`src/index.css` is a `var(--token)`, and the `.dark` block near the top of that
+file redefines the tokens rather than patching component rules. The preference
+persists to `preferences.json` in Electron's userData — localStorage is banned
+in the renderer (see below) — and `nimbus-atmosphere` gets it as `<AtmosphereLayer dark>`.
 
 ## Security constraints
 

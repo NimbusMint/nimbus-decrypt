@@ -1,3 +1,5 @@
+import type { ThemePreference } from './theme';
+
 export interface KdfParams {
   algorithm: 'argon2id';
   memory: number;
@@ -58,6 +60,10 @@ declare global {
         close: () => void;
         isMaximized: () => Promise<boolean>;
         onMaximizeChange: (cb: (maximized: boolean) => void) => void;
+      };
+      theme: {
+        initial: () => ThemePreference;
+        set: (theme: ThemePreference) => Promise<void>;
       };
       decrypt: {
         wallets: (bundleJson: string, password: string) => Promise<DecryptResult>;

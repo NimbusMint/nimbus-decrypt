@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { DecryptResult, SaveTextRequest, SaveEncryptedRequest } from '../src/types/wallet';
+import type { ThemePreference } from '../src/types/theme';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   window: {
@@ -9,6 +10,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:is-maximized'),
     onMaximizeChange: (cb: (maximized: boolean) => void) =>
       ipcRenderer.on('window:maximized', (_e, v: boolean) => cb(v)),
+  },
+
+  theme: {
+    // Synchronous: the renderer needs this before its first paint. See the
+    // 'theme:get-sync' handler in electron/ipc/theme.ts.
+    initial: (): ThemePreference => ipcRenderer.sendSync('theme:get-sync'),
+    set: (theme: ThemePreference): Promise<void> => ipcRenderer.invoke('theme:set', theme),
   },
 
   decrypt: {

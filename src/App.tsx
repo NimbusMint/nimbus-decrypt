@@ -5,7 +5,9 @@ import { PasswordForm } from './components/PasswordForm';
 import { WalletCard } from './components/WalletCard';
 import { LockScreen } from './components/LockScreen';
 import { ExportModal } from './components/ExportModal';
+import { ThemeToggle } from './components/ThemeToggle';
 import { useAutoLock } from './hooks/useAutoLock';
+import { useTheme } from './hooks/useTheme';
 import { validateBundle } from './utils/schema';
 import type { DecryptedWallet, WalletBundle } from './types/wallet';
 
@@ -113,6 +115,7 @@ function ShieldIcon() {
 }
 
 export default function App() {
+  const { theme, isDark, setTheme } = useTheme();
   const [phase, setPhase] = useState<Phase>('idle');
   const [bundleJson, setBundleJson] = useState('');
   const [bundle, setBundle] = useState<WalletBundle | null>(null);
@@ -207,7 +210,7 @@ export default function App() {
 
   return (
     <>
-    <AtmosphereLayer />
+    <AtmosphereLayer dark={isDark} />
     <div className="app">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -228,6 +231,8 @@ export default function App() {
         </div>
 
         <div className="header__actions">
+          <ThemeToggle theme={theme} onChange={setTheme} />
+
           <div className="header__offline-badge">
             <span className="header__offline-dot" />
             Offline
