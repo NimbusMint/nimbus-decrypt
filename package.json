@@ -1,6 +1,6 @@
 {
   "name": "nimbus-decrypt",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Standalone offline decryptor for NimbusMint wallet export bundles",
   "author": {
     "name": "shimin",
