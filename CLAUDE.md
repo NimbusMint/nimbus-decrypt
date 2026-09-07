@@ -87,3 +87,29 @@ in the renderer (see below) — and `nimbus-atmosphere` gets it as `<AtmosphereL
 Tests import directly from `electron/lib/crypto.ts` (pure functions) and `src/utils/schema.ts`. The `argon2id` KDF params in tests use `memory: 8192, iterations: 1` for speed — production bundles use much higher values.
 
 The `vitest.config.ts` sets `environment: 'node'` so Node built-ins (`crypto`, `buffer`) are available.
+
+
+---
+
+## Cross-repo work — the agent team
+
+This repo is one of eight under `~/nimbus`. The couplings between them that
+**nothing enforces** — no compiler, no test, no type — are written down in
+`~/nimbus/nimbus-tools/docs/CONTRACTS.md`. Break one and nothing goes red; the
+system just starts being quietly wrong in production.
+
+### What this repo depends on
+
+`nimbus-atmosphere` is vendored via `"file:./nimbus-atmosphere"`. **This copy is
+1.0.0; upstream is 1.0.1** — contract **C3**. Editing the vendored directory does
+not change upstream, and `npm update` will never propagate a fix.
+
+**This app is offline by design.** Everything runs on the user's machine — no
+servers, no internet, no accounts. **Any new dependency or code path that can
+reach the network is a security regression**, not a style question. Check
+transitively, and take it to `security-sentinel`.
+
+**Ask `contract-guard` before merging anything touching the paths above.** The
+full roster and the 14-stage pipeline are in `~/nimbus/nimbus-tools/docs/TEAM.md`
+and `PIPELINE.md`; `docs/OPERATIONS.md` records what CI and the environments
+actually do.
