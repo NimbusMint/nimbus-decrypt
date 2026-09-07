@@ -1,10 +1,58 @@
 name: CI
 
+# "Test & Lint" IS THE INTENDED REQUIRED STATUS CHECK for this repository, and
+# the thing that makes it usable is something this file does NOT have: a
+# `paths:` filter. Read this before you add one.
+#
+# THE TRAP, hit for real on 2026-09-07. Required status checks were turned on
+# across nimbusmint, nimbus-discord and nimbus-decrypt and had to come back out
+# within the hour. The other two workflows were `paths:`-filtered at the `on:`
+# level, and on a pull request touching no matching file GitHub never starts the
+# workflow — so the required check never reports at all. A check that never
+# reports is not red, it is PENDING FOREVER: the PR cannot be merged and there
+# is nothing to click. A docs-only PR was unmergeable. A gate that silently jams
+# is worse than no gate.
+#
+# This workflow escaped that only because it happens to have no `paths:` filter.
+# That is now load-bearing rather than accidental. If you `paths:`-filter this
+# file to save minutes, you will jam every PR that does not touch the filtered
+# paths, and the symptom will appear on somebody else's docs PR rather than
+# yours. The supported way to filter is the one nimbusmint and nimbus-discord
+# now use in their test.yml: no `paths:` under `on:`, and a first step in the
+# job that decides whether there is work to do, so the check always REPORTS even
+# when it does nothing. Copy that shape if you need it; do not reach for
+# `on: paths:`.
+#
+# `branches: [main, master]` is the same hazard in a smaller size. Required
+# checks are configured per branch, so if a protected branch is ever added here
+# that is not main or master, this workflow will not run on PRs into it and
+# those PRs will jam in exactly the same way. Add the branch here first.
+#
+# COST. The 2,000 Actions minutes/month ceiling (3,000 on Team as of
+# 2026-09-07) is shared across every NimbusMint repository, and nimbusmint
+# deleted its original CI once for burning ~50 of them per pull request. This
+# job is cheap: measured on run 2026-09-07T15:33Z it took 33 seconds, and
+# Actions bills each job rounded UP to the whole minute, so 1 minute per pull
+# request. Making it a required check costs nothing extra — it already runs on
+# every PR to main.
+#
+# The expensive part of this file is NOT this job. On a `push` to main the three
+# `build-*` jobs below also run, and non-Linux runners are billed at a
+# multiplier: on that same run Build (macOS) took 2m13s at 10x = ~30 minutes,
+# Build (Windows) 2m37s at 2x = ~6 minutes, Build (Linux) 2m17s = ~3 minutes,
+# plus a second Test & Lint. That is roughly 40 billed minutes for every merge
+# to main, and it is the largest single line item in the shared budget. It is
+# left alone here deliberately, because this change is about making the check
+# requireable and bundling a trigger change into it would be the wrong risk.
+# Somebody should look at it separately.
+
 on:
   push:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+    # NO `paths:` HERE, DELIBERATELY. See the header. This job must report on
+    # every pull request or it cannot be a required check.
 
 jobs:
   test:
