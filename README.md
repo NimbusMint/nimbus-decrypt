@@ -39,6 +39,7 @@
 - Drag-and-drop `.json` NimbusMint wallet bundle import
 - Argon2id key derivation + AES-256-GCM decryption
 - Per-wallet private key reveal (hold-to-reveal or toggle)
+- Optional per-wallet API keys (e.g. an OpenSea developer key) shown, copied and exported with the same protections
 - Clipboard copy with 30-second auto-clear and countdown
 - Export as re-encrypted bundle, plaintext TXT, or CSV
 - Inactivity auto-lock after 5 minutes
@@ -79,7 +80,7 @@ No. There is no network code in the application at all.
 Yes, that is the intended use case. It requires no internet access to function.
 
 **What file format does it support?**
-Encrypted `.json` bundles exported by NimbusMint, using Argon2id + AES-256-GCM.
+Encrypted `.json` bundles exported by NimbusMint, using Argon2id + AES-256-GCM. A wallet entry may also carry an optional `apiKeys` array, encrypted under the same per-wallet key — see [SECURITY.md](./SECURITY.md#optional-per-wallet-api-keys) for the format.
 
 **Why does macOS warn me about the app?**
 The builds are not code-signed with an Apple developer certificate. Right-click → Open to bypass the Gatekeeper prompt on first launch.

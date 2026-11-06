@@ -8,13 +8,40 @@
 import { createDecipheriv, createCipheriv, randomBytes } from 'crypto';
 import { argon2id } from '@noble/hashes/argon2';
 import { validateBundle } from '../../src/utils/schema';
-import type { KdfParams, DecryptResult, DecryptedWallet, SaveEncryptedRequest, WalletBundle } from '../../src/types/wallet';
+import type {
+  KdfParams,
+  DecryptResult,
+  DecryptedApiKey,
+  DecryptedWallet,
+  EncryptedApiKey,
+  SaveEncryptedRequest,
+  SaveTextRequest,
+  WalletBundle,
+} from '../../src/types/wallet';
 
 const SUPPORTED_ALGORITHM = 'argon2id-aes256gcm';
 const AES_KEY_BYTES = 32;
 const GCM_IV_BYTES = 12;
 const GCM_TAG_BYTES = 16;
 const MIN_CIPHERTEXT_BYTES = GCM_IV_BYTES + 1 + GCM_TAG_BYTES;
+const API_KEY_AAD_PREFIX = 'apikey:';
+
+/**
+ * AAD for a wallet's private key in a v2 bundle: the lowercase address.
+ */
+export function privateKeyAad(address: string): Buffer {
+  return Buffer.from(address.toLowerCase(), 'utf8');
+}
+
+/**
+ * AAD for an entry in a wallet's `apiKeys` array: `"apikey:" + lowercase address`.
+ * Deliberately different from the private key's AAD, so a ciphertext cannot be
+ * moved from one field to the other even though both use the same derived key.
+ * Used for every bundle version: apiKeys did not exist before this format.
+ */
+export function apiKeyAad(address: string): Buffer {
+  return Buffer.from(API_KEY_AAD_PREFIX + address.toLowerCase(), 'utf8');
+}
 
 export function deriveKey(
   password: string,
@@ -72,17 +99,93 @@ export function aesGcmDecrypt(
   return result;
 }
 
-export function aesGcmEncrypt(key: Uint8Array, plaintext: string): string {
+export function aesGcmEncrypt(key: Uint8Array, plaintext: string, aad?: Buffer): string {
   const iv = randomBytes(GCM_IV_BYTES);
   const keyBuf = Buffer.from(key);
 
   const cipher = createCipheriv('aes-256-gcm', keyBuf, iv);
+  if (aad) cipher.setAAD(aad);
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
   keyBuf.fill(0);
 
   return Buffer.concat([iv, encrypted, authTag]).toString('base64');
+}
+
+/** Blank every decrypted secret string we still reference. Strings cannot be
+ *  zeroed in V8; this drops the references so nothing returns them. */
+function blankDecrypted(wallets: DecryptedWallet[]): void {
+  for (const r of wallets) {
+    (r as unknown as Record<string, unknown>).privateKey = '';
+    if (r.apiKeys) blankApiKeys(r.apiKeys);
+  }
+  wallets.length = 0;
+}
+
+function blankApiKeys(keys: DecryptedApiKey[]): void {
+  for (const k of keys) {
+    (k as unknown as Record<string, unknown>).apiKey = '';
+  }
+  keys.length = 0;
+}
+
+/**
+ * Decrypt an already-validated bundle. Below the schema layer so tests can
+ * exercise v2 semantics without paying for the 256 MiB v2 KDF floor.
+ *
+ * Fails closed: if ANY ciphertext (private key or API key) fails to
+ * authenticate, nothing is returned and every secret decrypted so far is blanked.
+ */
+export function decryptValidatedBundle(bundle: WalletBundle, password: string): DecryptResult {
+  if (bundle.algorithm !== SUPPORTED_ALGORITHM) {
+    return { ok: false, error: `Unsupported algorithm: ${bundle.algorithm}` };
+  }
+
+  const results: DecryptedWallet[] = [];
+
+  for (const wallet of bundle.wallets) {
+    let key: Uint8Array | null = null;
+    const apiKeys: DecryptedApiKey[] = [];
+    try {
+      // One derivation per wallet; the same key covers the private key and
+      // every apiKeys entry (they share the per-wallet salt and bundle kdf).
+      key = deriveKey(password, wallet.salt, bundle.kdf);
+      // v2 bundles (NimbusMint exports) encrypt the raw 32-byte secp256k1 scalar
+      // with AAD = lowercase address. v1 bundles encrypt a UTF-8 hex string with no AAD.
+      const isV2 = bundle.version === 2;
+      const aad = isV2 ? privateKeyAad(wallet.address) : undefined;
+      const privateKey = aesGcmDecrypt(key, wallet.ciphertext, aad, isV2 ? 'hex' : 'utf8');
+
+      // API keys: UTF-8 plaintext, AAD = "apikey:" + lowercase address.
+      for (const entry of wallet.apiKeys ?? []) {
+        const apiKey = aesGcmDecrypt(key, entry.ciphertext, apiKeyAad(wallet.address), 'utf8');
+        const out: DecryptedApiKey = { name: entry.name, apiKey };
+        if (entry.expiresAt !== undefined) out.expiresAt = entry.expiresAt;
+        apiKeys.push(out);
+      }
+
+      const decrypted: DecryptedWallet = {
+        walletId: wallet.walletId,
+        name: wallet.name,
+        address: wallet.address,
+        privateKey,
+      };
+      if (apiKeys.length > 0) decrypted.apiKeys = apiKeys;
+      results.push(decrypted);
+    } catch (err) {
+      // Clear any keys already derived
+      if (key) key.fill(0);
+      // Blank secrets already decrypted — can't zero strings but remove references
+      blankApiKeys(apiKeys);
+      blankDecrypted(results);
+      return { ok: false, error: err instanceof Error ? err.message : 'Decryption failed' };
+    } finally {
+      if (key) key.fill(0);
+    }
+  }
+
+  return { ok: true, wallets: results };
 }
 
 export async function decryptBundle(bundleJson: string, password: string): Promise<DecryptResult> {
@@ -94,37 +197,7 @@ export async function decryptBundle(bundleJson: string, password: string): Promi
     return { ok: false, error: err instanceof Error ? err.message : 'Invalid bundle format' };
   }
 
-  if (bundle.algorithm !== SUPPORTED_ALGORITHM) {
-    return { ok: false, error: `Unsupported algorithm: ${bundle.algorithm}` };
-  }
-
-  const results: DecryptedWallet[] = [];
-
-  for (const wallet of bundle.wallets) {
-    let key: Uint8Array | null = null;
-    try {
-      key = deriveKey(password, wallet.salt, bundle.kdf);
-      // v2 bundles (NimbusMint exports) encrypt the raw 32-byte secp256k1 scalar
-      // with AAD = lowercase address. v1 bundles encrypt a UTF-8 hex string with no AAD.
-      const isV2 = bundle.version === 2;
-      const aad = isV2 ? Buffer.from(wallet.address.toLowerCase()) : undefined;
-      const privateKey = aesGcmDecrypt(key, wallet.ciphertext, aad, isV2 ? 'hex' : 'utf8');
-      results.push({ walletId: wallet.walletId, name: wallet.name, address: wallet.address, privateKey });
-    } catch (err) {
-      // Clear any keys already derived
-      if (key) key.fill(0);
-      // Blank private keys already pushed — can't zero strings but remove references
-      for (const r of results) {
-        (r as unknown as Record<string, unknown>).privateKey = '';
-      }
-      results.length = 0;
-      return { ok: false, error: err instanceof Error ? err.message : 'Decryption failed' };
-    } finally {
-      if (key) key.fill(0);
-    }
-  }
-
-  return { ok: true, wallets: results };
+  return decryptValidatedBundle(bundle, password);
 }
 
 export function encryptBundle(req: SaveEncryptedRequest): string {
@@ -136,15 +209,28 @@ export function encryptBundle(req: SaveEncryptedRequest): string {
 
     let key: Uint8Array | null = null;
     try {
-      key = deriveKey(password, saltBase64, kdf);
-      const ciphertext = aesGcmEncrypt(key, w.privateKey);
-      return {
+      const walletKey = deriveKey(password, saltBase64, kdf);
+      key = walletKey;
+      const ciphertext = aesGcmEncrypt(walletKey, w.privateKey);
+      const out: WalletBundle['wallets'][number] = {
         walletId: w.walletId,
         name: w.name,
         address: w.address,
         salt: saltBase64,
         ciphertext,
       };
+      if (w.apiKeys && w.apiKeys.length > 0) {
+        // Same derived key as the private key; fresh IV per entry (aesGcmEncrypt).
+        out.apiKeys = w.apiKeys.map((k): EncryptedApiKey => {
+          const entry: EncryptedApiKey = {
+            name: k.name,
+            ciphertext: aesGcmEncrypt(walletKey, k.apiKey, apiKeyAad(w.address)),
+          };
+          if (k.expiresAt !== undefined) entry.expiresAt = k.expiresAt;
+          return entry;
+        });
+      }
+      return out;
     } finally {
       if (key) key.fill(0);
     }
@@ -162,9 +248,9 @@ export function encryptBundle(req: SaveEncryptedRequest): string {
   return JSON.stringify(bundle, null, 2);
 }
 
-export function formatWalletsTxt(
-  wallets: Array<{ name: string; address: string; privateKey: string }>
-): string {
+type TextExportWallet = SaveTextRequest['wallets'][number];
+
+export function formatWalletsTxt(wallets: TextExportWallet[]): string {
   const lines = [
     '# NimbusMint Wallet Export — KEEP THIS FILE SECURE',
     `# Exported: ${new Date().toISOString()}`,
@@ -179,19 +265,42 @@ export function formatWalletsTxt(
     lines.push(`Name:        ${w.name}`);
     lines.push(`Address:     ${w.address}`);
     lines.push(`Private Key: ${w.privateKey}`);
+    for (const k of w.apiKeys ?? []) {
+      lines.push(`API Key (${k.name}): ${k.apiKey}`);
+    }
     lines.push('');
   }
 
   return lines.join('\n');
 }
 
-export function formatWalletsCsv(
-  wallets: Array<{ name: string; address: string; privateKey: string }>
-): string {
-  const rows = ['"Name","Address","Private Key"'];
+/** Escape the separators of the `api_keys` cell's inner `name=key;name=key` list. */
+function escapeApiKeyPart(s: string): string {
+  return s.replace(/[\\;=]/g, (c) => `\\${c}`);
+}
+
+/**
+ * CSV export. The `api_keys` column is added only when at least one wallet
+ * carries API keys, so an export of a bundle without them is byte-identical
+ * to what this app produced before the column existed.
+ *
+ * `api_keys` cell: `name=key` pairs joined with `;`; a `\`, `;` or `=` inside a
+ * name or key is backslash-escaped. The whole cell is then CSV-quoted.
+ */
+export function formatWalletsCsv(wallets: TextExportWallet[]): string {
+  const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  const withApiKeys = wallets.some(w => (w.apiKeys?.length ?? 0) > 0);
+
+  const rows = [withApiKeys ? '"Name","Address","Private Key","api_keys"' : '"Name","Address","Private Key"'];
   for (const w of wallets) {
-    const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
-    rows.push([escape(w.name), escape(w.address), escape(w.privateKey)].join(','));
+    const cells = [escape(w.name), escape(w.address), escape(w.privateKey)];
+    if (withApiKeys) {
+      const joined = (w.apiKeys ?? [])
+        .map(k => `${escapeApiKeyPart(k.name)}=${escapeApiKeyPart(k.apiKey)}`)
+        .join(';');
+      cells.push(escape(joined));
+    }
+    rows.push(cells.join(','));
   }
   return rows.join('\n');
 }

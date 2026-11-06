@@ -8,6 +8,24 @@ export interface KdfParams {
   saltLen: number;
 }
 
+/**
+ * An encrypted API key belonging to a wallet (e.g. the OpenSea developer key
+ * registered to that wallet). Optional — customer wallet exports never carry it.
+ *
+ * Encrypted under the SAME Argon2id key as the wallet's private key (same
+ * per-wallet salt, same bundle kdf params). AAD is the UTF-8 bytes of
+ * `"apikey:" + address.toLowerCase()`, which differs from the private key's AAD
+ * so a ciphertext cannot be moved between the two fields. Plaintext is UTF-8.
+ */
+export interface EncryptedApiKey {
+  /** Plaintext label, not secret. */
+  name: string;
+  /** Optional RFC3339 expiry, plaintext. */
+  expiresAt?: string;
+  /** base64-encoded (IV[12] || ciphertext || authTag[16]) */
+  ciphertext: string;
+}
+
 export interface EncryptedWallet {
   walletId: string;
   name: string;
@@ -16,6 +34,8 @@ export interface EncryptedWallet {
   salt: string;
   /** base64-encoded (IV[12] || ciphertext || authTag[16]) */
   ciphertext: string;
+  /** Optional; absent or empty behaves exactly like a bundle without it. */
+  apiKeys?: EncryptedApiKey[];
 }
 
 export interface WalletBundle {
@@ -28,11 +48,19 @@ export interface WalletBundle {
   wallets: EncryptedWallet[];
 }
 
+export interface DecryptedApiKey {
+  name: string;
+  expiresAt?: string;
+  apiKey: string;
+}
+
 export interface DecryptedWallet {
   walletId: string;
   name: string;
   address: string;
   privateKey: string;
+  /** Present only when the bundle wallet carried a non-empty apiKeys array. */
+  apiKeys?: DecryptedApiKey[];
 }
 
 export type DecryptResult =
@@ -40,12 +68,18 @@ export type DecryptResult =
   | { ok: false; error: string };
 
 export interface SaveTextRequest {
-  wallets: Array<{ name: string; address: string; privateKey: string }>;
+  wallets: Array<{ name: string; address: string; privateKey: string; apiKeys?: DecryptedApiKey[] }>;
   format: 'txt' | 'csv';
 }
 
 export interface SaveEncryptedRequest {
-  wallets: Array<{ walletId: string; name: string; address: string; privateKey: string }>;
+  wallets: Array<{
+    walletId: string;
+    name: string;
+    address: string;
+    privateKey: string;
+    apiKeys?: DecryptedApiKey[];
+  }>;
   password: string;
   kdf: KdfParams;
 }

@@ -55,6 +55,40 @@ base64( IV[12 bytes] || encrypted_data || GCM_auth_tag[16 bytes] )
 - The auth tag provides authenticated encryption — any tamper to ciphertext, IV, or associated state causes decryption to throw before any plaintext is produced.
 - Wrong password → wrong key → auth tag mismatch → exception. No partial decryption ever occurs.
 
+### Optional per-wallet API keys
+
+A wallet entry may carry an optional `apiKeys` array (bundle `version` and
+`algorithm` are unchanged). NimbusMint uses it to export developer accounts — a
+wallet together with the OpenSea API key registered to it. Customer wallet
+exports never include it, and a bundle without it (or with an empty array)
+behaves exactly as before.
+
+```
+wallets[i].apiKeys?: Array<{
+  name: string;        // plaintext label, not secret
+  expiresAt?: string;  // optional RFC3339, plaintext
+  ciphertext: string;  // base64( IV[12] || AES-256-GCM ciphertext || tag[16] )
+}>
+```
+
+- **Key:** the same Argon2id-derived key as that wallet's private key (same
+  per-wallet salt, same bundle `kdf`). It is derived once per wallet.
+- **AAD:** UTF-8 bytes of `"apikey:" + address.toLowerCase()`. The private key's
+  AAD is the bare lowercase address, so a ciphertext cannot be moved between the
+  two fields, and the address binding stops an entry being moved between wallets.
+- **Plaintext:** the API key as UTF-8 text.
+- **Validation:** at most 10 entries per wallet; `name` non-empty; `ciphertext`
+  base64 of at least 29 bytes; `expiresAt` a string if present.
+- **Fail closed:** if any API key fails to authenticate, the whole decrypt fails
+  and no wallet is shown, exactly as for a private key.
+
+API keys get the same treatment as private keys in the UI (masked,
+hold-to-reveal, copy with a 30-second clipboard clear) and are included in every
+export: TXT adds `API Key (<name>): <key>` lines; CSV adds an `api_keys` column
+(only when some wallet has keys) holding `name=key` pairs joined with `;`, where
+`\`, `;` and `=` inside a name or key are backslash-escaped; the re-encrypted
+bundle re-encrypts each entry under the scheme above with a fresh IV.
+
 ---
 
 ## Electron Security Configuration
@@ -133,7 +167,7 @@ When you choose "Export as TXT" or "Export as CSV":
 - You must type `I UNDERSTAND` in a confirmation dialog.
 - A native OS save dialog opens — you choose the exact destination.
 - The file is written once. This app does not retain a reference or re-write it.
-- The file contains plaintext private keys. **It must be treated with the same care as a hardware wallet seed phrase.**
+- The file contains plaintext private keys (and any API keys the bundle carried). **It must be treated with the same care as a hardware wallet seed phrase.**
 
 ### Re-encrypted Export
 
