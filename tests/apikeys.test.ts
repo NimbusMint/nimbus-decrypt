@@ -335,3 +335,73 @@ describe('validateBundle apiKeys', () => {
     });
   }
 });
+
+// ── Per-call derived-key cache ───────────────────────────────────────────────
+
+describe('decryptValidatedBundle key cache', () => {
+  function countingDeriver() {
+    const derived: Uint8Array[] = [];
+    const fn = (password: string, salt: string, kdf: KdfParams) => {
+      const k = deriveKey(password, salt, kdf);
+      derived.push(k);
+      return k;
+    };
+    return { fn, derived };
+  }
+  const isZero = (k: Uint8Array) => k.every(b => b === 0);
+
+  it('derives once for wallets sharing a salt, and zeroes the key afterwards', () => {
+    const salt = randomBytes(16);
+    const bundle = makeV2Bundle('pw', [
+      { address: ADDR, pkHex: PK_HEX, salt, apiKeys: [{ name: 'a', apiKey: 'key-a' }] },
+      { address: '0x' + '44'.repeat(20), pkHex: 'd4'.repeat(32), salt, apiKeys: [{ name: 'b', apiKey: 'key-b' }] },
+    ]);
+    const d = countingDeriver();
+    const res = decryptValidatedBundle(bundle, 'pw', d.fn);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.wallets.map(w => w.privateKey)).toEqual([PK_HEX, 'd4'.repeat(32)]);
+    expect(res.wallets.map(w => w.apiKeys![0].apiKey)).toEqual(['key-a', 'key-b']);
+    expect(d.derived).toHaveLength(1);
+    expect(d.derived.every(isZero)).toBe(true);
+  });
+
+  it('derives once per wallet for distinct salts, and zeroes every key', () => {
+    const bundle = makeV2Bundle('pw', [
+      { address: ADDR, pkHex: PK_HEX },
+      { address: '0x' + '55'.repeat(20), pkHex: 'e5'.repeat(32) },
+    ]);
+    const d = countingDeriver();
+    const res = decryptValidatedBundle(bundle, 'pw', d.fn);
+    expect(res.ok).toBe(true);
+    expect(d.derived).toHaveLength(2);
+    expect(d.derived.every(isZero)).toBe(true);
+  });
+
+  it('zeroes cached keys when decryption fails', () => {
+    const salt = randomBytes(16);
+    const bundle = makeV2Bundle('pw', [
+      { address: ADDR, pkHex: PK_HEX, salt },
+      { address: '0x' + '66'.repeat(20), pkHex: 'f6'.repeat(32), salt },
+      { address: '0x' + '77'.repeat(20), pkHex: 'a7'.repeat(32) },
+    ]);
+    // Corrupt the third wallet so the failure happens after the shared key is cached.
+    const raw = Buffer.from(bundle.wallets[2].ciphertext, 'base64');
+    raw[13] ^= 0x01;
+    bundle.wallets[2].ciphertext = raw.toString('base64');
+    const d = countingDeriver();
+    const res = decryptValidatedBundle(bundle, 'pw', d.fn);
+    expect(res.ok).toBe(false);
+    expect(d.derived).toHaveLength(2);
+    expect(d.derived.every(isZero)).toBe(true);
+  });
+
+  it('a wrong password on a shared-salt bundle still fails', () => {
+    const salt = randomBytes(16);
+    const bundle = makeV2Bundle('pw', [
+      { address: ADDR, pkHex: PK_HEX, salt },
+      { address: '0x' + '88'.repeat(20), pkHex: 'b8'.repeat(32), salt },
+    ]);
+    expect(decryptValidatedBundle(bundle, 'nope').ok).toBe(false);
+  });
+});

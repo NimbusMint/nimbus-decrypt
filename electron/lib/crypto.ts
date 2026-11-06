@@ -130,62 +130,91 @@ function blankApiKeys(keys: DecryptedApiKey[]): void {
   keys.length = 0;
 }
 
+export type KeyDeriver = (password: string, saltBase64: string, kdf: KdfParams) => Uint8Array;
+
 /**
  * Decrypt an already-validated bundle. Below the schema layer so tests can
  * exercise v2 semantics without paying for the 256 MiB v2 KDF floor.
  *
  * Fails closed: if ANY ciphertext (private key or API key) fails to
  * authenticate, nothing is returned and every secret decrypted so far is blanked.
+ *
+ * Derived keys are cached for the duration of this call, keyed by the salt
+ * string and the kdf params. Some NimbusMint exporters (developer-keygen) use
+ * ONE salt for every wallet in a bundle; each entry still has its own IV and
+ * address-bound AAD. Without the cache a 100-wallet bundle at 256 MiB would run
+ * 100 identical Argon2id derivations. Bundles with a distinct salt per wallet
+ * (customer exports from the signer) derive once per wallet, exactly as before.
+ * Every cached key is zeroed before this function returns, success or failure.
+ *
+ * `derive` is injectable for tests only.
  */
-export function decryptValidatedBundle(bundle: WalletBundle, password: string): DecryptResult {
+export function decryptValidatedBundle(
+  bundle: WalletBundle,
+  password: string,
+  derive: KeyDeriver = deriveKey,
+): DecryptResult {
   if (bundle.algorithm !== SUPPORTED_ALGORITHM) {
     return { ok: false, error: `Unsupported algorithm: ${bundle.algorithm}` };
   }
 
   const results: DecryptedWallet[] = [];
+  const keyCache = new Map<string, Uint8Array>();
+  const kdfId = `${bundle.kdf.algorithm}:${bundle.kdf.memory}:${bundle.kdf.iterations}:${bundle.kdf.parallelism}`;
 
-  for (const wallet of bundle.wallets) {
-    let key: Uint8Array | null = null;
-    const apiKeys: DecryptedApiKey[] = [];
-    try {
-      // One derivation per wallet; the same key covers the private key and
-      // every apiKeys entry (they share the per-wallet salt and bundle kdf).
-      key = deriveKey(password, wallet.salt, bundle.kdf);
-      // v2 bundles (NimbusMint exports) encrypt the raw 32-byte secp256k1 scalar
-      // with AAD = lowercase address. v1 bundles encrypt a UTF-8 hex string with no AAD.
-      const isV2 = bundle.version === 2;
-      const aad = isV2 ? privateKeyAad(wallet.address) : undefined;
-      const privateKey = aesGcmDecrypt(key, wallet.ciphertext, aad, isV2 ? 'hex' : 'utf8');
-
-      // API keys: UTF-8 plaintext, AAD = "apikey:" + lowercase address.
-      for (const entry of wallet.apiKeys ?? []) {
-        const apiKey = aesGcmDecrypt(key, entry.ciphertext, apiKeyAad(wallet.address), 'utf8');
-        const out: DecryptedApiKey = { name: entry.name, apiKey };
-        if (entry.expiresAt !== undefined) out.expiresAt = entry.expiresAt;
-        apiKeys.push(out);
-      }
-
-      const decrypted: DecryptedWallet = {
-        walletId: wallet.walletId,
-        name: wallet.name,
-        address: wallet.address,
-        privateKey,
-      };
-      if (apiKeys.length > 0) decrypted.apiKeys = apiKeys;
-      results.push(decrypted);
-    } catch (err) {
-      // Clear any keys already derived
-      if (key) key.fill(0);
-      // Blank secrets already decrypted — can't zero strings but remove references
-      blankApiKeys(apiKeys);
-      blankDecrypted(results);
-      return { ok: false, error: err instanceof Error ? err.message : 'Decryption failed' };
-    } finally {
-      if (key) key.fill(0);
+  const keyFor = (saltBase64: string): Uint8Array => {
+    const id = `${kdfId}|${saltBase64}`;
+    let key = keyCache.get(id);
+    if (!key) {
+      key = derive(password, saltBase64, bundle.kdf);
+      keyCache.set(id, key);
     }
-  }
+    return key;
+  };
 
-  return { ok: true, wallets: results };
+  try {
+    for (const wallet of bundle.wallets) {
+      const apiKeys: DecryptedApiKey[] = [];
+      try {
+        // The same key covers the private key and every apiKeys entry (they
+        // share the wallet's salt and the bundle kdf).
+        const key = keyFor(wallet.salt);
+        // v2 bundles (NimbusMint exports) encrypt the raw 32-byte secp256k1 scalar
+        // with AAD = lowercase address. v1 bundles encrypt a UTF-8 hex string with no AAD.
+        const isV2 = bundle.version === 2;
+        const aad = isV2 ? privateKeyAad(wallet.address) : undefined;
+        const privateKey = aesGcmDecrypt(key, wallet.ciphertext, aad, isV2 ? 'hex' : 'utf8');
+
+        // API keys: UTF-8 plaintext, AAD = "apikey:" + lowercase address.
+        for (const entry of wallet.apiKeys ?? []) {
+          const apiKey = aesGcmDecrypt(key, entry.ciphertext, apiKeyAad(wallet.address), 'utf8');
+          const out: DecryptedApiKey = { name: entry.name, apiKey };
+          if (entry.expiresAt !== undefined) out.expiresAt = entry.expiresAt;
+          apiKeys.push(out);
+        }
+
+        const decrypted: DecryptedWallet = {
+          walletId: wallet.walletId,
+          name: wallet.name,
+          address: wallet.address,
+          privateKey,
+        };
+        if (apiKeys.length > 0) decrypted.apiKeys = apiKeys;
+        results.push(decrypted);
+      } catch (err) {
+        // Blank secrets already decrypted — can't zero strings but remove references
+        blankApiKeys(apiKeys);
+        blankDecrypted(results);
+        return { ok: false, error: err instanceof Error ? err.message : 'Decryption failed' };
+      }
+    }
+
+    return { ok: true, wallets: results };
+  } finally {
+    // Zero every derived key, on success and on failure.
+    for (const key of keyCache.values()) key.fill(0);
+    keyCache.clear();
+  }
 }
 
 export async function decryptBundle(bundleJson: string, password: string): Promise<DecryptResult> {
