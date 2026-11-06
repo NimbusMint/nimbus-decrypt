@@ -160,6 +160,7 @@ export function ExportModal({ wallets, bundleKdf, onClose }: ExportModalProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const confirmRef = useRef<HTMLInputElement>(null);
+  const hasApiKeys = wallets.some(w => (w.apiKeys?.length ?? 0) > 0);
 
   const confirmValid = confirmInput === CONFIRM_PHRASE;
   const encPasswordsMatch = encPassword.length >= 8 && encPassword === encPasswordConfirm;
@@ -175,7 +176,12 @@ export function ExportModal({ wallets, bundleKdf, onClose }: ExportModalProps) {
     setSaveError(null);
     try {
       const req = {
-        wallets: wallets.map(w => ({ name: w.name, address: w.address, privateKey: w.privateKey })),
+        wallets: wallets.map(w => ({
+          name: w.name,
+          address: w.address,
+          privateKey: w.privateKey,
+          ...(w.apiKeys && w.apiKeys.length > 0 ? { apiKeys: w.apiKeys } : {}),
+        })),
         format: format as 'txt' | 'csv',
       };
       const saved = await window.electronAPI.file.saveText(req);
@@ -202,6 +208,7 @@ export function ExportModal({ wallets, bundleKdf, onClose }: ExportModalProps) {
           name: w.name,
           address: w.address,
           privateKey: w.privateKey,
+          ...(w.apiKeys && w.apiKeys.length > 0 ? { apiKeys: w.apiKeys } : {}),
         })),
         password: encPassword,
         kdf: bundleKdf,
@@ -286,7 +293,7 @@ export function ExportModal({ wallets, bundleKdf, onClose }: ExportModalProps) {
               <div>
                 <div className="export-option__label">Plaintext TXT</div>
                 <div className="export-option__desc">
-                  Exports address + private key as plain text. Anyone with this file can drain your wallets.
+                  Exports address + private key{hasApiKeys ? ' + API keys' : ''} as plain text. Anyone with this file can drain your wallets.
                 </div>
                 <span className="export-risk-tag export-risk-tag--danger">
                   <WarningIcon />
@@ -302,7 +309,7 @@ export function ExportModal({ wallets, bundleKdf, onClose }: ExportModalProps) {
               <div>
                 <div className="export-option__label">Plaintext CSV</div>
                 <div className="export-option__desc">
-                  Spreadsheet format. Same risk as TXT — private keys are fully exposed.
+                  Spreadsheet format. Same risk as TXT — private keys{hasApiKeys ? ' and API keys' : ''} are fully exposed.
                 </div>
                 <span className="export-risk-tag export-risk-tag--danger">
                   <WarningIcon />
@@ -325,6 +332,9 @@ export function ExportModal({ wallets, bundleKdf, onClose }: ExportModalProps) {
               </div>
               <div className="warning-box__list">
                 <div className="warning-box__item">Anyone with these keys can drain your wallets instantly.</div>
+                {hasApiKeys && (
+                  <div className="warning-box__item">API keys are included in plaintext too — anyone with them can act as these accounts.</div>
+                )}
                 <div className="warning-box__item">Never store this file in cloud sync folders (Dropbox, Drive, iCloud).</div>
                 <div className="warning-box__item">Delete the file securely when you no longer need it.</div>
                 <div className="warning-box__item">NimbusMint cannot help you recover compromised wallets.</div>

@@ -1,4 +1,4 @@
-import type { WalletBundle, KdfParams, EncryptedWallet } from '../types/wallet';
+import type { WalletBundle, KdfParams, EncryptedWallet, EncryptedApiKey } from '../types/wallet';
 
 // Memory floors per bundle version (values are in KiB, matching the kdf.memory field).
 // v1 = legacy exports (64 MiB Argon2id was used at creation time; keep a low floor so
@@ -7,6 +7,8 @@ import type { WalletBundle, KdfParams, EncryptedWallet } from '../types/wallet';
 const V1_MIN_MEMORY_KIB = 8192;    // 8 MiB  — preserve backward compat for old exports
 const V2_MIN_MEMORY_KIB = 262144;  // 256 MiB — mandatory floor for v2+ bundles
 const MIN_SALT_BYTES = 16;         // RFC 9106 §4 minimum
+const MIN_CIPHERTEXT_BYTES = 29;   // IV(12) + 1 byte + authTag(16)
+const MAX_API_KEYS_PER_WALLET = 10;
 
 function assertString(val: unknown, field: string): string {
   if (typeof val !== 'string' || val.length === 0) {
@@ -52,6 +54,47 @@ function validateKdf(kdf: unknown, version: 1 | 2): KdfParams {
   };
 }
 
+function decodeBase64(val: string, field: string): Uint8Array {
+  try {
+    return Uint8Array.from(atob(val), (c) => c.charCodeAt(0));
+  } catch {
+    throw new Error(`Invalid bundle: "${field}" is not valid base64`);
+  }
+}
+
+function validateApiKeys(val: unknown, walletIndex: number): EncryptedApiKey[] | undefined {
+  // Absent means "no API keys" — exactly the pre-existing format.
+  if (val === undefined) return undefined;
+  const field = `wallet[${walletIndex}].apiKeys`;
+  if (!Array.isArray(val)) {
+    throw new Error(`Invalid bundle: "${field}" must be an array`);
+  }
+  if (val.length > MAX_API_KEYS_PER_WALLET) {
+    throw new Error(
+      `Invalid bundle: "${field}" exceeds maximum of ${MAX_API_KEYS_PER_WALLET} entries`
+    );
+  }
+
+  return val.map((entry: unknown, j): EncryptedApiKey => {
+    const ef = `${field}[${j}]`;
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new Error(`Invalid bundle: ${ef} is not an object`);
+    }
+    const e = entry as Record<string, unknown>;
+    const name = assertString(e.name, `${ef}.name`);
+    const ciphertext = assertString(e.ciphertext, `${ef}.ciphertext`);
+    if (decodeBase64(ciphertext, `${ef}.ciphertext`).length < MIN_CIPHERTEXT_BYTES) {
+      throw new Error(`Invalid bundle: ${ef}.ciphertext is too short`);
+    }
+    if (e.expiresAt !== undefined && typeof e.expiresAt !== 'string') {
+      throw new Error(`Invalid bundle: "${ef}.expiresAt" must be a string`);
+    }
+    const out: EncryptedApiKey = { name, ciphertext };
+    if (typeof e.expiresAt === 'string') out.expiresAt = e.expiresAt;
+    return out;
+  });
+}
+
 function validateWallet(w: unknown, index: number): EncryptedWallet {
   if (!w || typeof w !== 'object') {
     throw new Error(`Invalid bundle: wallet[${index}] is not an object`);
@@ -74,11 +117,14 @@ function validateWallet(w: unknown, index: number): EncryptedWallet {
 
   // Sanity-check base64 payload is large enough for IV(12) + 1 byte + authTag(16)
   const raw = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
-  if (raw.length < 29) {
+  if (raw.length < MIN_CIPHERTEXT_BYTES) {
     throw new Error(`Invalid bundle: wallet[${index}].ciphertext is too short`);
   }
 
-  return { walletId, name, address, salt, ciphertext };
+  const apiKeys = validateApiKeys(wallet.apiKeys, index);
+  const out: EncryptedWallet = { walletId, name, address, salt, ciphertext };
+  if (apiKeys && apiKeys.length > 0) out.apiKeys = apiKeys;
+  return out;
 }
 
 export function validateBundle(obj: unknown): WalletBundle {

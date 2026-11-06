@@ -74,14 +74,30 @@ function walletLabel(index: number): string {
   return `W${String(index + 1).padStart(2, '0')}`;
 }
 
-export function WalletCard({ wallet, index }: WalletCardProps) {
+interface SecretFieldProps {
+  /** Visible field label, e.g. "Private Key" or "API Key · OpenSea". */
+  label: string;
+  /** Lower-case noun used in titles/aria labels, e.g. "private key". */
+  noun: string;
+  /** Short word for the copy button, e.g. "Key". */
+  copyNoun: string;
+  secret: string;
+  /** Optional plaintext detail shown under the label (e.g. an expiry). */
+  detail?: string;
+}
+
+/**
+ * One secret value with hold-to-reveal, a 15 s toggle reveal, and copy with a
+ * 30 s clipboard auto-clear. Each instance owns its own reveal and clipboard
+ * state, so revealing an API key never reveals the private key and vice versa.
+ */
+function SecretField({ label, noun, copyNoun, secret, detail }: SecretFieldProps) {
   const [revealing, setRevealing] = useState(false);
   const [toggleRevealed, setToggleRevealed] = useState(false);
   const [revealCountdown, setRevealCountdown] = useState<number | null>(null);
   const revealIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [copiedAddr, setCopiedAddr] = useState(false);
-  const [copiedKey, setCopiedKey] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { countdown, copyWithAutoClear, cancelClear } = useClipboard();
 
   const isRevealed = revealing || toggleRevealed;
@@ -120,6 +136,98 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
     }
   }, [toggleRevealed, clearRevealTimer]);
 
+  const copySecret = async () => {
+    if (countdown !== null) {
+      cancelClear();
+      return;
+    }
+    try {
+      await copyWithAutoClear(secret, 30);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard denied */ }
+  };
+
+  const copyClass = [
+    'copy-btn',
+    copied ? 'copy-btn--copied' : countdown !== null ? 'copy-btn--counting' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className="wallet-card__field">
+      <div className="wallet-card__field-label">{label}</div>
+      {detail && (
+        <div className="wallet-card__id" style={{ marginBottom: 6 }}>{detail}</div>
+      )}
+      <div className="wallet-card__field-row">
+        <div
+          className={`wallet-card__value${isRevealed ? ' wallet-card__value--revealed' : ' wallet-card__value--masked'}`}
+          aria-label={isRevealed ? `${label} visible` : `${label} hidden`}
+        >
+          {secret}
+        </div>
+      </div>
+
+      <div className="wallet-card__actions">
+        {/* Hold-to-reveal */}
+        <button
+          className={`reveal-btn${revealing ? ' reveal-btn--active' : ''}`}
+          onMouseDown={startReveal}
+          onMouseUp={stopReveal}
+          onMouseLeave={stopReveal}
+          onTouchStart={startReveal}
+          onTouchEnd={stopReveal}
+          title={`Hold to reveal ${noun}`}
+          aria-label={`Hold to reveal ${noun}`}
+        >
+          <EyeIcon />
+          Hold to reveal
+        </button>
+
+        {/* Toggle reveal — auto-hides after 15 s */}
+        <button
+          className={`reveal-btn${toggleRevealed ? ' reveal-btn--active' : ''}`}
+          onClick={toggleReveal}
+          title={toggleRevealed ? `Hide ${noun}` : `Show ${noun} (15 s max)`}
+          aria-label={toggleRevealed ? `Hide ${noun}` : `Show ${noun}`}
+        >
+          {toggleRevealed ? <EyeOffIcon /> : <EyeIcon />}
+          {toggleRevealed
+            ? `Hide${revealCountdown !== null ? ` (${revealCountdown}s)` : ''}`
+            : 'Show'}
+        </button>
+
+        {/* Copy with auto-clear */}
+        <button
+          className={copyClass}
+          onClick={copySecret}
+          title={countdown !== null ? 'Click to clear clipboard now' : `Copy ${noun} — auto-clears in 30s`}
+          aria-label={`Copy ${noun}`}
+        >
+          {copied ? (
+            <><CheckIcon />Copied!</>
+          ) : countdown !== null ? (
+            <><TimerIcon />Clear in {countdown}s</>
+          ) : (
+            <><CopyIcon />Copy {copyNoun}</>
+          )}
+        </button>
+      </div>
+
+      <div
+        className="clipboard-hint"
+        style={{ marginTop: 8, visibility: countdown !== null && !copied ? 'visible' : 'hidden' }}
+      >
+        <WarningIcon />
+        Clipboard clears in {countdown ?? 30}s — click Copy {copyNoun} to clear now.
+      </div>
+    </div>
+  );
+}
+
+export function WalletCard({ wallet, index }: WalletCardProps) {
+  const [copiedAddr, setCopiedAddr] = useState(false);
+
   const copyAddress = async () => {
     try {
       await navigator.clipboard.writeText(wallet.address);
@@ -127,23 +235,6 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
       setTimeout(() => setCopiedAddr(false), 2000);
     } catch { /* clipboard denied */ }
   };
-
-  const copyKey = async () => {
-    if (countdown !== null) {
-      cancelClear();
-      return;
-    }
-    try {
-      await copyWithAutoClear(wallet.privateKey, 30);
-      setCopiedKey(true);
-      setTimeout(() => setCopiedKey(false), 1500);
-    } catch { /* clipboard denied */ }
-  };
-
-  const copyKeyClass = [
-    'copy-btn',
-    copiedKey ? 'copy-btn--copied' : countdown !== null ? 'copy-btn--counting' : '',
-  ].filter(Boolean).join(' ');
 
   const cardStyle: React.CSSProperties = { animationDelay: `${index * 55}ms` };
 
@@ -182,71 +273,24 @@ export function WalletCard({ wallet, index }: WalletCardProps) {
       </div>
 
       {/* Private key */}
-      <div className="wallet-card__field">
-        <div className="wallet-card__field-label">Private Key</div>
-        <div className="wallet-card__field-row">
-          <div
-            className={`wallet-card__value${isRevealed ? ' wallet-card__value--revealed' : ' wallet-card__value--masked'}`}
-            aria-label={isRevealed ? 'Private key visible' : 'Private key hidden'}
-          >
-            {wallet.privateKey}
-          </div>
-        </div>
+      <SecretField
+        label="Private Key"
+        noun="private key"
+        copyNoun="Key"
+        secret={wallet.privateKey}
+      />
 
-        <div className="wallet-card__actions">
-          {/* Hold-to-reveal */}
-          <button
-            className={`reveal-btn${revealing ? ' reveal-btn--active' : ''}`}
-            onMouseDown={startReveal}
-            onMouseUp={stopReveal}
-            onMouseLeave={stopReveal}
-            onTouchStart={startReveal}
-            onTouchEnd={stopReveal}
-            title="Hold to reveal private key"
-            aria-label="Hold to reveal private key"
-          >
-            <EyeIcon />
-            Hold to reveal
-          </button>
-
-          {/* Toggle reveal — auto-hides after 15 s */}
-          <button
-            className={`reveal-btn${toggleRevealed ? ' reveal-btn--active' : ''}`}
-            onClick={toggleReveal}
-            title={toggleRevealed ? 'Hide private key' : 'Show private key (15 s max)'}
-            aria-label={toggleRevealed ? 'Hide private key' : 'Show private key'}
-          >
-            {toggleRevealed ? <EyeOffIcon /> : <EyeIcon />}
-            {toggleRevealed
-              ? `Hide${revealCountdown !== null ? ` (${revealCountdown}s)` : ''}`
-              : 'Show'}
-          </button>
-
-          {/* Copy with auto-clear */}
-          <button
-            className={copyKeyClass}
-            onClick={copyKey}
-            title={countdown !== null ? 'Click to clear clipboard now' : 'Copy private key — auto-clears in 30s'}
-            aria-label="Copy private key"
-          >
-            {copiedKey ? (
-              <><CheckIcon />Copied!</>
-            ) : countdown !== null ? (
-              <><TimerIcon />Clear in {countdown}s</>
-            ) : (
-              <><CopyIcon />Copy Key</>
-            )}
-          </button>
-        </div>
-
-        <div
-          className="clipboard-hint"
-          style={{ marginTop: 8, visibility: countdown !== null && !copiedKey ? 'visible' : 'hidden' }}
-        >
-          <WarningIcon />
-          Clipboard clears in {countdown ?? 30}s — click Copy Key to clear now.
-        </div>
-      </div>
+      {/* API keys (optional; e.g. the OpenSea developer key for this wallet) */}
+      {(wallet.apiKeys ?? []).map((k, i) => (
+        <SecretField
+          key={`${i}-${k.name}`}
+          label={`API Key · ${k.name}`}
+          noun={`API key ${k.name}`}
+          copyNoun="API Key"
+          secret={k.apiKey}
+          detail={k.expiresAt ? `Expires ${k.expiresAt}` : undefined}
+        />
+      ))}
     </div>
   );
 }

@@ -55,6 +55,13 @@ Defined in `electron/preload.ts` via `contextBridge.exposeInMainWorld`. Types ar
 
 Decoding in `electron/lib/crypto.ts:aesGcmDecrypt`.
 
+Optional `wallets[i].apiKeys[]` entries use the same format and the same
+per-wallet derived key, with AAD `"apikey:" + address.toLowerCase()` (the
+private key's v2 AAD is the bare lowercase address) and UTF-8 plaintext. Full
+spec in `SECURITY.md` → *Optional per-wallet API keys*. v2 tests that need
+fast KDF params call `decryptValidatedBundle` directly, below the schema's
+256 MiB v2 floor.
+
 ### App state machine (`src/App.tsx`)
 
 `idle → file-loaded → decrypting → unlocked ↔ locked`
